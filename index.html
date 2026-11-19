@@ -1,7 +1,7 @@
 <!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>Lwi Skok</title>
-<!-- Lwi Skok, wersja 0.0.56 -->
-<meta name="version" content="0.0.56">
+<!-- Lwi Skok, wersja 0.0.58 -->
+<meta name="version" content="0.0.58">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -155,7 +155,7 @@ body {
   <div class="panel">
     <h1>Lwi Skok</h1>
     <p>Biegnij przez zaczarowany, zimowy las i przeskakuj przeszkody.</p>
-    <div class="ver">wersja 0.0.56</div>
+    <div class="ver">wersja 0.0.58</div>
   </div>
   <div class="panel">
     <label id="picker">Poziom startowy<b id="pickVal">1</b>
@@ -195,7 +195,7 @@ body {
 <div id="about" hidden>
   <div class="aboutBox">
     <h2>Informacje i licencje</h2>
-    <p><b>Lwi Skok</b>, wersja 0.0.56<br>© 2026 Tomasz Palus – wszelkie prawa zastrzeżone.</p>
+    <p><b>Lwi Skok</b>, wersja 0.0.58<br>© 2026 Tomasz Palus – wszelkie prawa zastrzeżone.</p>
     <p>Kod, grafika 3D, muzyka i efekty dźwiękowe są oryginalne i generowane w kodzie. Gra nie zawiera cudzych plików graficznych ani dźwiękowych. Powstała z pomocą narzędzia AI Claude (Anthropic). Nie jest związana z żadnymi istniejącymi książkami, filmami ani markami.</p>
     <h3>Wykorzystane zasoby</h3>
     <ul>
@@ -741,16 +741,30 @@ body {
 
   /* ---------- meta poziomu: flagi i linia ---------- */
   function gateDist(k) { return 100 * k + 2.5 * k * (k - 1); }
-  var gatePoleGeo = new THREE.CylinderGeometry(.06, .08, 2.8, 8), flagGeo = new THREE.PlaneGeometry(1.5, 1.1), finishGeo = new THREE.PlaneGeometry(9, .4);
+  var gatePoleGeo = new THREE.CylinderGeometry(.06, .08, 2.8, 8), flagGeo = new THREE.PlaneGeometry(1.5, 1.1), finishGeo = new THREE.PlaneGeometry(9, 1.1);
   var gatePostMat = M(0xf0c24a);
-  /* linia w poprzek trasy w kolorze flag */
-  var finishMat = new THREE.MeshBasicMaterial({ color: 0xc8344f, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  /* linia w poprzek trasy w kolorze flag: nierowna, jakby malowana pedzlem; kilka wariantow */
+  function lineMaterial() {
+    var c = document.createElement('canvas'); c.width = 512; c.height = 64;
+    var g = c.getContext('2d'), pass, x, i;
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    for (pass = 0; pass < 3; pass++) {
+      g.strokeStyle = pass === 0 ? '#f0a93a' : '#ffd978'; g.globalAlpha = pass === 0 ? .92 : .4; g.lineWidth = pass === 0 ? rand(17, 22) : rand(9, 13);
+      g.beginPath(); g.moveTo(rand(8, 24), 32 + rand(-4, 4));
+      for (x = 40; x < 500; x += 36) g.lineTo(x + rand(-6, 6), 32 + Math.sin(x * .02 + pass * 2) * 4 + rand(-3, 3));
+      g.lineTo(rand(488, 504), 32 + rand(-4, 4)); g.stroke();
+    }
+    g.globalCompositeOperation = 'destination-out';
+    for (i = 0; i < 70; i++) { g.globalAlpha = rand(.2, .75); g.fillRect(rand(0, 512), rand(14, 50), rand(2, 10), rand(1, 4)); }
+    return new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  }
+  var lineMats = [lineMaterial(), lineMaterial(), lineMaterial()];
   function flagTexture(lv) {
     var c = document.createElement('canvas'); c.width = 256; c.height = 192;
     var g = c.getContext('2d');
     g.fillStyle = '#fff6dc'; g.fillRect(0, 0, 256, 192);
-    g.fillStyle = '#c8344f'; g.fillRect(10, 10, 236, 172);
-    g.fillStyle = '#fff6dc'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = '#f0a93a'; g.fillRect(10, 10, 236, 172);
+    g.fillStyle = '#3a2300'; g.textAlign = 'center'; g.textBaseline = 'middle';
     g.font = '800 ' + (lv > 99 ? 90 : 130) + 'px "Nunito", system-ui, sans-serif';
     g.fillText(String(lv), 128, 100);
     return new THREE.CanvasTexture(c);
@@ -767,7 +781,7 @@ body {
       var fl = new THREE.Mesh(flagGeo, fm); fl.position.x = .75; fg.add(fl);
       flags.push(fg);
     });
-    var line = new THREE.Mesh(finishGeo, finishMat); line.rotation.x = -Math.PI / 2; line.position.y = .04; grp.add(line);
+    var line = new THREE.Mesh(finishGeo, pick(lineMats)); line.rotation.x = -Math.PI / 2; line.rotation.z = rand(-.025, .025); line.position.set(rand(-.15, .15), .04, rand(-.1, .1)); grp.add(line);
     return { mesh: grp, level: k + 1, passed: false, t: 0, age: 0, flags: flags, tex: tex, bm: fm };
   }
 
