@@ -1,7 +1,7 @@
 <!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>Lwi Skok</title>
-<!-- Lwi Skok, wersja 0.0.52 -->
-<meta name="version" content="0.0.52">
+<!-- Lwi Skok, wersja 0.0.56 -->
+<meta name="version" content="0.0.56">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -155,7 +155,7 @@ body {
   <div class="panel">
     <h1>Lwi Skok</h1>
     <p>Biegnij przez zaczarowany, zimowy las i przeskakuj przeszkody.</p>
-    <div class="ver">wersja 0.0.52</div>
+    <div class="ver">wersja 0.0.56</div>
   </div>
   <div class="panel">
     <label id="picker">Poziom startowy<b id="pickVal">1</b>
@@ -195,7 +195,7 @@ body {
 <div id="about" hidden>
   <div class="aboutBox">
     <h2>Informacje i licencje</h2>
-    <p><b>Lwi Skok</b>, wersja 0.0.52<br>© 2026 Tomasz Palus – wszelkie prawa zastrzeżone.</p>
+    <p><b>Lwi Skok</b>, wersja 0.0.56<br>© 2026 Tomasz Palus – wszelkie prawa zastrzeżone.</p>
     <p>Kod, grafika 3D, muzyka i efekty dźwiękowe są oryginalne i generowane w kodzie. Gra nie zawiera cudzych plików graficznych ani dźwiękowych. Powstała z pomocą narzędzia AI Claude (Anthropic). Nie jest związana z żadnymi istniejącymi książkami, filmami ani markami.</p>
     <h3>Wykorzystane zasoby</h3>
     <ul>
@@ -739,43 +739,36 @@ body {
     if (document.hidden) { try { AC.suspend(); } catch (e) {} } else recoverAudio();
   });
 
-  /* ---------- meta poziomu: brama z tasma ---------- */
+  /* ---------- meta poziomu: flagi i linia ---------- */
   function gateDist(k) { return 100 * k + 2.5 * k * (k - 1); }
-  var gatePostGeo = new THREE.CylinderGeometry(.12, .16, 2.1, 10), gatePlane = new THREE.PlaneGeometry(2.4, 1.2), tapeGeo = new THREE.BoxGeometry(3.9, .12, .04), stringGeo = new THREE.BoxGeometry(.03, .18, .03);
+  var gatePoleGeo = new THREE.CylinderGeometry(.06, .08, 2.8, 8), flagGeo = new THREE.PlaneGeometry(1.5, 1.1), finishGeo = new THREE.PlaneGeometry(9, .4);
   var gatePostMat = M(0xf0c24a);
-  var tapeMat = (function () {
-    var c = document.createElement('canvas'); c.width = 64; c.height = 8;
-    var g = c.getContext('2d'); g.fillStyle = '#ff4d6d'; g.fillRect(0, 0, 64, 8);
-    g.fillStyle = '#ffffff'; for (var i = 0; i < 64; i += 16) g.fillRect(i, 0, 8, 8);
-    var t = new THREE.CanvasTexture(c); t.wrapS = THREE.RepeatWrapping; t.repeat.set(5, 1);
-    return new THREE.MeshBasicMaterial({ map: t });
-  })();
-  function bannerTexture(lv) {
-    var c = document.createElement('canvas'); c.width = 512; c.height = 256;
+  /* linia w poprzek trasy w kolorze flag */
+  var finishMat = new THREE.MeshBasicMaterial({ color: 0xc8344f, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  function flagTexture(lv) {
+    var c = document.createElement('canvas'); c.width = 256; c.height = 192;
     var g = c.getContext('2d');
-    g.fillStyle = '#232c70'; g.fillRect(0, 0, 512, 256);
-    g.fillStyle = '#fff6dc'; g.fillRect(14, 14, 484, 228);
-    g.fillStyle = '#c8344f'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.font = '800 56px "Nunito", system-ui, sans-serif';
-    g.fillText('POZIOM', 256, 70);
-    g.fillStyle = '#1b2260';
-    g.font = '800 150px "Nunito", system-ui, sans-serif';
-    g.fillText(String(lv), 256, 172);
+    g.fillStyle = '#fff6dc'; g.fillRect(0, 0, 256, 192);
+    g.fillStyle = '#c8344f'; g.fillRect(10, 10, 236, 172);
+    g.fillStyle = '#fff6dc'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = '800 ' + (lv > 99 ? 90 : 130) + 'px "Nunito", system-ui, sans-serif';
+    g.fillText(String(lv), 128, 100);
     return new THREE.CanvasTexture(c);
   }
+  /* brama poziomu: male flagi z numerem po bokach trasy i linia na drodze */
   function mkGate(k) {
-    var grp = new THREE.Group();
-    [-4, 4].forEach(function (x) {
-      var p = new THREE.Mesh(gatePostGeo, gatePostMat); p.position.set(x, 1.05, 0); grp.add(p);
-      var kn = new THREE.Mesh(sph, gatePostMat); kn.scale.setScalar(.22); kn.position.set(x, 2.15, 0); grp.add(kn);
+    var grp = new THREE.Group(), flags = [];
+    var tex = flagTexture(k + 1), fm = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide });
+    [-1, 1].forEach(function (sd) {
+      var x = sd * 4.5;
+      var pole = new THREE.Mesh(gatePoleGeo, gatePostMat); pole.position.set(x, 1.4, 0); grp.add(pole);
+      var kn = new THREE.Mesh(sph, gatePostMat); kn.scale.setScalar(.16); kn.position.set(x, 2.85, 0); grp.add(kn);
+      var fg = new THREE.Group(); fg.position.set(x, 2.2, 0); grp.add(fg);
+      var fl = new THREE.Mesh(flagGeo, fm); fl.position.x = .75; fg.add(fl);
+      flags.push(fg);
     });
-    var tex = bannerTexture(k + 1), bm = new THREE.MeshBasicMaterial({ map: tex });
-    var signG = new THREE.Group(); signG.position.z = .03; grp.add(signG);
-    var board = new THREE.Mesh(gatePlane, bm); board.position.set(0, .85, 0); signG.add(board);
-    [-.9, .9].forEach(function (sx) { var st = new THREE.Mesh(stringGeo, darkM); st.position.set(sx, 1.52, 0); signG.add(st); });
-    var tl = new THREE.Mesh(tapeGeo, tapeMat); tl.position.set(-1.95, 1.5, 0); grp.add(tl);
-    var tr = new THREE.Mesh(tapeGeo, tapeMat); tr.position.set(1.95, 1.5, 0); grp.add(tr);
-    return { mesh: grp, level: k + 1, passed: false, t: 0, halves: [tl, tr], sign: signG, tex: tex, bm: bm };
+    var line = new THREE.Mesh(finishGeo, finishMat); line.rotation.x = -Math.PI / 2; line.position.y = .04; grp.add(line);
+    return { mesh: grp, level: k + 1, passed: false, t: 0, age: 0, flags: flags, tex: tex, bm: fm };
   }
 
   /* ---------- pory roku: topnienie sniegu zalezne od przebytej drogi ---------- */
@@ -1215,14 +1208,9 @@ body {
     for (var gi = gates.length - 1; gi >= 0; gi--) {
       var gt = gates[gi]; gt.mesh.position.z += dz;
       if (!gt.passed && gt.mesh.position.z >= -2) { gt.passed = true; if (playing) { level = Math.max(level, gt.level); if (level >= WIN_LEVEL) winGame(); } }
-      if (gt.passed) {
-        gt.t += dt;
-        var hl = gt.halves[0], hr = gt.halves[1], fy = Math.max(.1, 1.5 - 4 * gt.t * gt.t);
-        hl.position.x = -1.95 - gt.t * 7; hr.position.x = 1.95 + gt.t * 7;
-        hl.position.y = fy; hr.position.y = fy; hl.rotation.z = gt.t * 3; hr.rotation.z = -gt.t * 3;
-        gt.sign.position.y = -Math.min(.25, 6 * gt.t * gt.t); gt.sign.rotation.z = Math.min(1.2, gt.t * 2.5);
-        if (gt.t > 1.2) { hl.visible = false; hr.visible = false; gt.sign.visible = false; }
-      }
+      gt.age += dt; if (gt.passed) gt.t += dt;
+      var pop = 1 + .3 * Math.max(0, Math.sin(Math.min(1, gt.t * 2.5) * Math.PI));
+      for (var fi = 0; fi < 2; fi++) { gt.flags[fi].rotation.y = Math.sin(gt.age * 5) * .18; gt.flags[fi].scale.setScalar(pop); }
       if (gt.mesh.position.z > 14) { scene.remove(gt.mesh); gt.tex.dispose(); gt.bm.dispose(); gates.splice(gi, 1); }
     }
     function gateNearSpawn() { for (var q = 0; q < gates.length; q++) if (Math.abs(gates[q].mesh.position.z - SPAWN_Z) < 9) return true; return false; }
